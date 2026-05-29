@@ -196,12 +196,8 @@ function M.add(preset_key, mode)
     if not track_index then return false, track_err end
 
     -- Compute timeline span: overlay covers full timeline at apply time (§7.10/§7.15).
-    -- GetDuration() returns total frames; fall back to end-start if unavailable.
     local start_frame = timeline:GetStartFrame()
-    local duration    = timeline:GetDuration()
-    if not duration or duration <= 0 then
-        duration = timeline:GetEndFrame() - start_frame
-    end
+    local duration    = timeline:GetEndFrame() - start_frame
 
     if duration <= 0 then
         return false, "Timeline has zero duration — nothing to overlay"
