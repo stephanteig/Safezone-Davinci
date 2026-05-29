@@ -200,9 +200,9 @@ function M.add(preset_key, mode)
     local end_frame   = timeline:GetEndFrame()
     local duration    = end_frame - start_frame
 
-    print(string.format("[SafeZone] timeline start=%s end=%s duration=%s", tostring(start_frame), tostring(end_frame), tostring(duration)))
+    print(string.format("[SafeZone] timeline='%s' start=%s end=%s duration=%s", tostring(timeline:GetName()), tostring(start_frame), tostring(end_frame), tostring(duration)))
     print(string.format("[SafeZone] track_index=%s", tostring(track_index)))
-    print(string.format("[SafeZone] mp_item=%s name=%s", tostring(mp_item), tostring(mp_item and mp_item:GetName())))
+    print(string.format("[SafeZone] mp_item name=%s", tostring(mp_item and mp_item:GetName())))
 
     if duration <= 0 then
         return false, "Timeline has zero duration — nothing to overlay"
@@ -213,34 +213,54 @@ function M.add(preset_key, mode)
         return false, "MediaPool unavailable"
     end
 
-    -- Attempt 1: with recordFrame to anchor at timeline start
-    local clip_info = {
-        mediaPoolItem = mp_item,
-        startFrame    = 0,
-        endFrame      = duration,
-        recordFrame   = start_frame,
-    }
-    print(string.format("[SafeZone] AppendToTimeline attempt 1: startFrame=0 endFrame=%s recordFrame=%s", tostring(duration), tostring(start_frame)))
-    local new_items = mp:AppendToTimeline({ clip_info })
-    print(string.format("[SafeZone] attempt 1 result: %s items", tostring(new_items and #new_items or "nil")))
-
-    -- Attempt 2: without recordFrame (let Resolve place at end of existing content)
-    if not new_items or #new_items == 0 then
-        clip_info.recordFrame = nil
-        print("[SafeZone] AppendToTimeline attempt 2: no recordFrame")
-        new_items = mp:AppendToTimeline({ clip_info })
-        print(string.format("[SafeZone] attempt 2 result: %s items", tostring(new_items and #new_items or "nil")))
+    -- AppendToTimeline requires the Edit page to be active.
+    local resolve_h = core.get_resolve()
+    local current_page = resolve_h and resolve_h:GetCurrentPage() or "unknown"
+    print(string.format("[SafeZone] current page: %s", tostring(current_page)))
+    if resolve_h and current_page ~= "edit" then
+        print("[SafeZone] switching to edit page before AppendToTimeline")
+        resolve_h:OpenPage("edit")
     end
 
-    -- Attempt 3: bare minimum — just the item, no frame params
+    -- Make the target timeline the active one before appending.
+    local project, _ = core.get_project()
+    if project then
+        project:SetCurrentTimeline(timeline)
+        print("[SafeZone] SetCurrentTimeline called")
+    end
+
+    local new_items
+
+    -- Attempt 1: clipInfo with recordFrame
+    local clip_info = { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame }
+    print(string.format("[SafeZone] attempt 1: clipInfo with recordFrame=%s endFrame=%s", tostring(start_frame), tostring(duration)))
+    new_items = mp:AppendToTimeline({ clip_info })
+    print(string.format("[SafeZone] attempt 1 result: %s", tostring(new_items and #new_items or "nil")))
+
+    -- Attempt 2: clipInfo without recordFrame
     if not new_items or #new_items == 0 then
-        print("[SafeZone] AppendToTimeline attempt 3: mediaPoolItem only")
-        new_items = mp:AppendToTimeline({ { mediaPoolItem = mp_item } })
-        print(string.format("[SafeZone] attempt 3 result: %s items", tostring(new_items and #new_items or "nil")))
+        print("[SafeZone] attempt 2: clipInfo no recordFrame")
+        new_items = mp:AppendToTimeline({ { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration } })
+        print(string.format("[SafeZone] attempt 2 result: %s", tostring(new_items and #new_items or "nil")))
+    end
+
+    -- Attempt 3: pass MediaPoolItem directly (no wrapper table)
+    if not new_items or #new_items == 0 then
+        print("[SafeZone] attempt 3: direct MediaPoolItem in list")
+        new_items = mp:AppendToTimeline({ mp_item })
+        print(string.format("[SafeZone] attempt 3 result: %s", tostring(new_items and #new_items or "nil")))
+    end
+
+    -- Attempt 4: single item not in a list
+    if not new_items or #new_items == 0 then
+        print("[SafeZone] attempt 4: single MediaPoolItem (not in list)")
+        local single = mp:AppendToTimeline(mp_item)
+        print(string.format("[SafeZone] attempt 4 result: %s", tostring(single)))
+        if single then new_items = { single } end
     end
 
     if not new_items or #new_items == 0 then
-        return false, "AppendToTimeline() returned empty list — check Workspace > Console for [SafeZone] debug output"
+        return false, "AppendToTimeline() failed — check Workspace > Console for [SafeZone] lines"
     end
 
     local placed = new_items[1]
