@@ -209,16 +209,22 @@ function M.add(preset_key, mode)
         return false, "MediaPool unavailable"
     end
 
+    -- trackIndex and mediaType are rejected by Resolve 21 and cause an empty return.
+    -- recordFrame places the clip at the timeline start; Resolve picks the track automatically.
     local clip_info = {
         mediaPoolItem = mp_item,
         startFrame    = 0,
-        endFrame      = duration,       -- source out-point; still images are held for this many frames
-        recordFrame   = start_frame,    -- timeline insert position
-        trackIndex    = track_index,
-        mediaType     = 1,              -- VERIFY: 1 = video; field may be ignored by some Resolve versions
+        endFrame      = duration,
+        recordFrame   = start_frame,
     }
 
     local new_items = mp:AppendToTimeline({ clip_info })
+
+    -- Fallback: some Resolve versions ignore recordFrame for stills; try without it.
+    if not new_items or #new_items == 0 then
+        clip_info.recordFrame = nil
+        new_items = mp:AppendToTimeline({ clip_info })
+    end
 
     if not new_items or #new_items == 0 then
         return false, "AppendToTimeline() returned empty list"
