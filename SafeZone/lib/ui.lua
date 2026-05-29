@@ -267,7 +267,12 @@ local function wire_events(win, itms, disp)
     end
 
     win.On.btn_render.Clicked = function(ev)
-        overlay.set_enabled(false)
+        -- If overlays are active, show the guard dialog before proceeding.
+        if overlay.any_enabled() then
+            guard.show_dialog(disp, fu.UIManager, function() refresh_ui(itms) end)
+            -- If user chose "Keep Overlay", any_enabled() is still true — bail out.
+            if overlay.any_enabled() then return end
+        end
         local resolve, res_err = core.get_resolve()
         if not resolve then
             show_error(itms, res_err)
