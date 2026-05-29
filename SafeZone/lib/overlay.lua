@@ -21,7 +21,8 @@ local function is_overlay_for_preset(item, preset)
     return name == preset.clip_name_prefix
 end
 
--- Iterates all video tracks and collects every TimelineItem with the __SZ_ prefix.
+-- Collects all overlay clips from the timeline.
+-- Matches by SafeZone track name (primary) or __SZ_ clip name prefix (fallback).
 -- Returns a sequential table of TimelineItems (may be empty — §7.8).
 function M.find_all()
     local timeline, err = core.get_timeline()
@@ -31,10 +32,11 @@ function M.find_all()
     local track_count = timeline:GetTrackCount("video")
 
     for i = 1, track_count do
+        local on_sz_track = (timeline:GetTrackName("video", i) == TRACK_NAME)
         local items = timeline:GetItemListInTrack("video", i)
         if items then
             for _, item in ipairs(items) do
-                if is_overlay(item) then
+                if on_sz_track or is_overlay(item) then
                     results[#results + 1] = item
                 end
             end
@@ -141,7 +143,7 @@ function M.remove(preset_key)
     return true, nil  -- not found is not an error
 end
 
--- Removes all __SZ_* overlay clips from the timeline.
+-- Removes all overlay clips from the timeline.
 -- Returns (true, nil) or (false, errmsg).
 function M.remove_all()
     local timeline, err = core.get_timeline()
@@ -150,13 +152,11 @@ function M.remove_all()
     local to_delete = M.find_all()
     if #to_delete == 0 then return true, nil end
 
-    -- DeleteClips in one call to minimise API round-trips.
-    local ok = timeline:DeleteClips(to_delete)
-    if not ok then
-        return false, "DeleteClips() failed"
-    end
+    -- Try DeleteClips first, then DeleteTimelineItems as fallback.
+    if timeline:DeleteClips(to_delete) then return true, nil end
+    if timeline:DeleteTimelineItems(to_delete) then return true, nil end
 
-    return true, nil
+    return false, "Could not delete overlay clips — try removing them manually from the SafeZone track"
 end
 
 -- Adds an overlay for the given presetKey.
@@ -196,9 +196,12 @@ function M.add(preset_key, mode)
     if not track_index then return false, track_err end
 
     -- Compute timeline span: overlay covers full timeline at apply time (§7.10/§7.15).
+    -- GetDuration() returns total frames; fall back to end-start if unavailable.
     local start_frame = timeline:GetStartFrame()
-    local end_frame   = timeline:GetEndFrame()
-    local duration    = end_frame - start_frame
+    local duration    = timeline:GetDuration()
+    if not duration or duration <= 0 then
+        duration = timeline:GetEndFrame() - start_frame
+    end
 
     if duration <= 0 then
         return false, "Timeline has zero duration — nothing to overlay"
