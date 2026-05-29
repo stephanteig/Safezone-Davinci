@@ -196,38 +196,51 @@ function M.add(preset_key, mode)
     if not track_index then return false, track_err end
 
     -- Compute timeline span: overlay covers full timeline at apply time (§7.10/§7.15).
-    local start_frame    = timeline:GetStartFrame()
-    local end_frame      = timeline:GetEndFrame()
-    local duration       = end_frame - start_frame
+    local start_frame = timeline:GetStartFrame()
+    local end_frame   = timeline:GetEndFrame()
+    local duration    = end_frame - start_frame
+
+    print(string.format("[SafeZone] timeline start=%s end=%s duration=%s", tostring(start_frame), tostring(end_frame), tostring(duration)))
+    print(string.format("[SafeZone] track_index=%s", tostring(track_index)))
+    print(string.format("[SafeZone] mp_item=%s name=%s", tostring(mp_item), tostring(mp_item and mp_item:GetName())))
 
     if duration <= 0 then
         return false, "Timeline has zero duration — nothing to overlay"
     end
 
-    local mp = core.get_media_pool()  -- already validated above via ensure_imported
+    local mp = core.get_media_pool()
     if not mp then
         return false, "MediaPool unavailable"
     end
 
-    -- trackIndex and mediaType are rejected by Resolve 21 and cause an empty return.
-    -- recordFrame places the clip at the timeline start; Resolve picks the track automatically.
+    -- Attempt 1: with recordFrame to anchor at timeline start
     local clip_info = {
         mediaPoolItem = mp_item,
         startFrame    = 0,
         endFrame      = duration,
         recordFrame   = start_frame,
     }
-
+    print(string.format("[SafeZone] AppendToTimeline attempt 1: startFrame=0 endFrame=%s recordFrame=%s", tostring(duration), tostring(start_frame)))
     local new_items = mp:AppendToTimeline({ clip_info })
+    print(string.format("[SafeZone] attempt 1 result: %s items", tostring(new_items and #new_items or "nil")))
 
-    -- Fallback: some Resolve versions ignore recordFrame for stills; try without it.
+    -- Attempt 2: without recordFrame (let Resolve place at end of existing content)
     if not new_items or #new_items == 0 then
         clip_info.recordFrame = nil
+        print("[SafeZone] AppendToTimeline attempt 2: no recordFrame")
         new_items = mp:AppendToTimeline({ clip_info })
+        print(string.format("[SafeZone] attempt 2 result: %s items", tostring(new_items and #new_items or "nil")))
+    end
+
+    -- Attempt 3: bare minimum — just the item, no frame params
+    if not new_items or #new_items == 0 then
+        print("[SafeZone] AppendToTimeline attempt 3: mediaPoolItem only")
+        new_items = mp:AppendToTimeline({ { mediaPoolItem = mp_item } })
+        print(string.format("[SafeZone] attempt 3 result: %s items", tostring(new_items and #new_items or "nil")))
     end
 
     if not new_items or #new_items == 0 then
-        return false, "AppendToTimeline() returned empty list"
+        return false, "AppendToTimeline() returned empty list — check Workspace > Console for [SafeZone] debug output"
     end
 
     local placed = new_items[1]
