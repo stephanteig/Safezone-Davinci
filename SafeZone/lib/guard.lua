@@ -65,6 +65,12 @@ function M.start(disp, on_disable_cb)
     local ui_mgr = fu.UIManager  -- fu is auto-injected by Resolve; guard.start() is only
                                   -- called from inside M.open() which already validates fu
 
+    -- Stop any previous timer before starting a new one (handles rapid re-launches).
+    if _timer then
+        _timer:Stop()
+        _timer = nil
+    end
+
     -- Capture the current page so the first tick doesn't false-fire on an existing Deliver page.
     local resolve, _ = core.get_resolve()
     _last_page = resolve and resolve:GetCurrentPage() or nil

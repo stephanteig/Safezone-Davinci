@@ -289,17 +289,14 @@ local function wire_events(win, itms, disp)
 end
 
 -- Opens the SafeZone GUI window. Blocks until the window is closed.
--- §7.17: best-effort singleton via fu:GetData.
 function M.open()
-    -- §7.17: singleton check
-    if fu and fu:GetData(SINGLETON_KEY) then
-        print("[SafeZone] GUI is already open")
-        return
-    end
-
     if not fu then
         error("[SafeZone] fu (Fusion application) is unavailable — run inside DaVinci Resolve")
     end
+
+    -- Clear any stale singleton flag left by a previous crash, then re-set it.
+    -- A second window opening is better than the window never appearing.
+    fu:SetData(SINGLETON_KEY, nil)
 
     local ui   = fu.UIManager
     local disp = bmd.UIDispatcher(ui)
