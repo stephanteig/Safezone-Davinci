@@ -251,7 +251,20 @@ function M.add(preset_key, mode)
         return false, "AppendToTimeline() returned empty — clip not placed"
     end
 
-    print(string.format("[SafeZone] placed '%s' — GetName=%s", preset.clip_name_prefix, tostring(new_items[1]:GetName())))
+    local placed = new_items[1]
+    print(string.format("[SafeZone] placed: GetName=%s", tostring(placed:GetName())))
+
+    -- Scan every video track so we can see where the clip actually landed.
+    local tc = timeline:GetTrackCount("video")
+    print(string.format("[SafeZone] video tracks after append: %d", tc))
+    for t = 1, tc do
+        local tname  = timeline:GetTrackName("video", t) or ""
+        local titems = timeline:GetItemListInTrack("video", t) or {}
+        print(string.format("[SafeZone]   track %d '%s': %d clip(s)", t, tname, #titems))
+        for _, ci in ipairs(titems) do
+            print(string.format("[SafeZone]     clip name=%s", tostring(ci:GetName())))
+        end
+    end
 
     local placed = new_items[1]
 
