@@ -235,13 +235,23 @@ function M.add(preset_key, mode)
         end
     end
 
+    -- Try with trackIndex first so the clip lands on the SafeZone track.
+    -- Fall back without it if that returns nil (Resolve version difference).
     local new_items = mp:AppendToTimeline({
-        { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame }
+        { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame, trackIndex = track_index }
     })
+
+    if not new_items or #new_items == 0 then
+        new_items = mp:AppendToTimeline({
+            { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame }
+        })
+    end
 
     if not new_items or #new_items == 0 then
         return false, "AppendToTimeline() returned empty — clip not placed"
     end
+
+    print(string.format("[SafeZone] placed '%s' — GetName=%s", preset.clip_name_prefix, tostring(new_items[1]:GetName())))
 
     local placed = new_items[1]
 
