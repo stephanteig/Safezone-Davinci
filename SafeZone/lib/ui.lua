@@ -22,18 +22,17 @@ local PLATFORM_BUTTONS = {
 }
 
 local RATIO_BUTTONS = {
-    { id = "btn_r_9x16", key = "ratio_9x16", text = "9:16" },
-    { id = "btn_r_4x5",  key = "ratio_4x5",  text = "4:5"  },
-    { id = "btn_r_1x1",  key = "ratio_1x1",  text = "1:1"  },
     { id = "btn_r_4x3",  key = "ratio_4x3",  text = "4:3"  },
+    { id = "btn_r_9x16", key = "ratio_9x16", text = "9:16" },
     { id = "btn_r_16x9", key = "ratio_16x9", text = "16:9" },
+    { id = "btn_r_1x1",  key = "ratio_1x1",  text = "1:1"  },
 }
 
 -- All overlay-action button IDs in one list for bulk enable/disable.
 local ACTION_BUTTON_IDS = {
     "btn_tiktok", "btn_ig_reels", "btn_yt_shorts",
     "btn_ig_feed", "btn_ig_post", "btn_yt_16x9", "btn_x_twitter",
-    "btn_r_9x16", "btn_r_4x5", "btn_r_1x1", "btn_r_4x3", "btn_r_16x9",
+    "btn_r_4x3", "btn_r_9x16", "btn_r_16x9", "btn_r_1x1",
     "btn_toggle", "btn_remove_all", "btn_render",
 }
 
@@ -174,11 +173,10 @@ local function build_window(ui, disp)
             -- Ratio-only section
             ui:Label{ Text = "Aspect ratio only" },
             ui:HGroup{
-                ui:Button{ ID = "btn_r_9x16", Text = "9:16" },
-                ui:Button{ ID = "btn_r_4x5",  Text = "4:5"  },
-                ui:Button{ ID = "btn_r_1x1",  Text = "1:1"  },
                 ui:Button{ ID = "btn_r_4x3",  Text = "4:3"  },
+                ui:Button{ ID = "btn_r_9x16", Text = "9:16" },
                 ui:Button{ ID = "btn_r_16x9", Text = "16:9" },
+                ui:Button{ ID = "btn_r_1x1",  Text = "1:1"  },
             },
 
             ui:HGap(0, 8),
