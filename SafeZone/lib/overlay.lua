@@ -200,10 +200,6 @@ function M.add(preset_key, mode)
     local end_frame   = timeline:GetEndFrame()
     local duration    = end_frame - start_frame
 
-    print(string.format("[SafeZone] timeline='%s' start=%s end=%s duration=%s", tostring(timeline:GetName()), tostring(start_frame), tostring(end_frame), tostring(duration)))
-    print(string.format("[SafeZone] track_index=%s", tostring(track_index)))
-    print(string.format("[SafeZone] mp_item name=%s", tostring(mp_item and mp_item:GetName())))
-
     if duration <= 0 then
         return false, "Timeline has zero duration — nothing to overlay"
     end
@@ -213,87 +209,38 @@ function M.add(preset_key, mode)
         return false, "MediaPool unavailable"
     end
 
-    -- AppendToTimeline requires the Edit page to be active.
+    -- Ensure we are on the Edit page — AppendToTimeline returns nil on other pages.
     local resolve_h, _ = core.get_resolve()
-    local current_page = resolve_h and resolve_h:GetCurrentPage() or "unknown"
-    print(string.format("[SafeZone] current page: %s", tostring(current_page)))
-    if resolve_h and current_page ~= "edit" then
+    if resolve_h and resolve_h:GetCurrentPage() ~= "edit" then
         resolve_h:OpenPage("edit")
-        print("[SafeZone] switched to edit page")
     end
 
-    -- Make the target timeline the active one before appending.
-    local project, _ = core.get_project()
-    if project then
-        project:SetCurrentTimeline(timeline)
-        print("[SafeZone] SetCurrentTimeline called")
-    end
-
-    -- Inspect the mp_item so we know what type Resolve thinks it is.
-    print(string.format("[SafeZone] mp_item Lua type: %s", type(mp_item)))
-    local clip_type = pcall(function() return mp_item:GetClipProperty("Clip Type") end)
-    print(string.format("[SafeZone] GetClipProperty('Clip Type'): %s", tostring(clip_type)))
-    print(string.format("[SafeZone] mp.AppendToTimeline is: %s", type(mp.AppendToTimeline)))
-
-    -- Reset current folder to root — some Resolve versions only append from the current bin.
+    -- AppendToTimeline only works reliably when the current MediaPool folder is the root.
+    -- Re-fetch the item from the SafeZone bin after the folder reset.
     local root_folder = mp:GetRootFolder()
     if root_folder then
         mp:SetCurrentFolder(root_folder)
-        print("[SafeZone] reset current folder to root")
-    end
-
-    -- Re-fetch mp_item from the SafeZone bin after folder reset to ensure valid reference.
-    local safezone_bin = nil
-    local subfolders = root_folder and root_folder:GetSubFolderList() or {}
-    for _, sub in ipairs(subfolders) do
-        if sub:GetName() == "SafeZone" then safezone_bin = sub break end
-    end
-    local fresh_item = nil
-    if safezone_bin then
-        local clips = safezone_bin:GetClipList() or {}
-        for _, c in ipairs(clips) do
-            if c:GetName() == mp_item:GetName() then fresh_item = c break end
+        local subfolders = root_folder:GetSubFolderList() or {}
+        for _, sub in ipairs(subfolders) do
+            if sub:GetName() == "SafeZone" then
+                local clips = sub:GetClipList() or {}
+                for _, c in ipairs(clips) do
+                    if c:GetName() == mp_item:GetName() then
+                        mp_item = c
+                        break
+                    end
+                end
+                break
+            end
         end
     end
-    if fresh_item then
-        print(string.format("[SafeZone] re-fetched item from bin: %s", tostring(fresh_item:GetName())))
-        mp_item = fresh_item
-    else
-        print("[SafeZone] could not re-fetch item, using original reference")
-    end
 
-    local new_items
-
-    -- Attempt 1: clipInfo with all fields
-    print(string.format("[SafeZone] attempt 1: {mediaPoolItem, startFrame=0, endFrame=%s, recordFrame=%s}", tostring(duration), tostring(start_frame)))
-    new_items = mp:AppendToTimeline({ { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame } })
-    print(string.format("[SafeZone] attempt 1 result: %s", tostring(new_items and #new_items or "nil")))
-
-    -- Attempt 2: no frame params at all
-    if not new_items or #new_items == 0 then
-        print("[SafeZone] attempt 2: {mediaPoolItem} only")
-        new_items = mp:AppendToTimeline({ { mediaPoolItem = mp_item } })
-        print(string.format("[SafeZone] attempt 2 result: %s", tostring(new_items and #new_items or "nil")))
-    end
-
-    -- Attempt 3: MediaPoolItem directly in list (no wrapper table)
-    if not new_items or #new_items == 0 then
-        print("[SafeZone] attempt 3: direct item in list {mp_item}")
-        new_items = mp:AppendToTimeline({ mp_item })
-        print(string.format("[SafeZone] attempt 3 result: %s", tostring(new_items and #new_items or "nil")))
-    end
-
-    -- Attempt 4: single item not in a list
-    if not new_items or #new_items == 0 then
-        print("[SafeZone] attempt 4: single item mp_item")
-        local r4 = mp:AppendToTimeline(mp_item)
-        print(string.format("[SafeZone] attempt 4 result: %s (type %s)", tostring(r4), type(r4)))
-        if r4 and type(r4) == "table" then new_items = r4
-        elseif r4 then new_items = { r4 } end
-    end
+    local new_items = mp:AppendToTimeline({
+        { mediaPoolItem = mp_item, startFrame = 0, endFrame = duration, recordFrame = start_frame }
+    })
 
     if not new_items or #new_items == 0 then
-        return false, "AppendToTimeline() failed on all attempts — check Workspace > Console"
+        return false, "AppendToTimeline() returned empty — clip not placed"
     end
 
     local placed = new_items[1]
