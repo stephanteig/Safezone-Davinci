@@ -37,34 +37,6 @@ local ACTION_BUTTON_IDS = {
     "btn_toggle", "btn_remove_all", "btn_render",
 }
 
--- Updates the status label and button enabled state based on current timeline.
--- §7.1 / §7.2: if no timeline, disables all overlay action buttons.
-local function refresh_ui(itms)
-    local ratio, w, h = detect.detect_ratio()
-
-    local has_timeline = (w ~= nil)  -- detect_ratio returns nil w/h only when no timeline
-
-    if not has_timeline then
-        itms.status.Text = "No timeline open"
-        for _, id in ipairs(ACTION_BUTTON_IDS) do
-            itms[id].Enabled = false
-        end
-        update_button_highlights(itms, "unknown")
-        set_footer(itms, "No overlays active")
-    else
-        if ratio == "unknown" then
-            itms.status.Text = string.format("Custom: %d\xC3\x97%d", w, h)  -- UTF-8 ×
-        else
-            itms.status.Text = "Detected: " .. ratio:gsub("x", ":")
-        end
-        for _, id in ipairs(ACTION_BUTTON_IDS) do
-            itms[id].Enabled = true
-        end
-        update_button_highlights(itms, ratio)
-        set_footer(itms, get_overlay_status())
-    end
-end
-
 -- Sets the footer label.
 local function set_footer(itms, text)
     itms.footer.Text = text
@@ -85,8 +57,8 @@ local function get_overlay_status()
     end
 
     -- Match clip names against preset clip_name_prefix to get display labels.
-    local labels     = {}
-    local any_on     = false
+    local labels = {}
+    local any_on = false
     for _, p in ipairs(presets.all()) do
         local enabled = name_to_enabled[p.clip_name_prefix]
         if enabled ~= nil then
@@ -126,6 +98,34 @@ local function update_button_highlights(itms, ratio)
     end
 end
 
+-- Updates the status label and button enabled state based on current timeline.
+-- §7.1 / §7.2: if no timeline, disables all overlay action buttons.
+local function refresh_ui(itms)
+    local ratio, w, h = detect.detect_ratio()
+
+    local has_timeline = (w ~= nil)  -- detect_ratio returns nil w/h only when no timeline
+
+    if not has_timeline then
+        itms.status.Text = "No timeline open"
+        for _, id in ipairs(ACTION_BUTTON_IDS) do
+            itms[id].Enabled = false
+        end
+        update_button_highlights(itms, "unknown")
+        set_footer(itms, "No overlays active")
+    else
+        if ratio == "unknown" then
+            itms.status.Text = string.format("Custom: %d\xC3\x97%d", w, h)  -- UTF-8 ×
+        else
+            itms.status.Text = "Detected: " .. ratio:gsub("x", ":")
+        end
+        for _, id in ipairs(ACTION_BUTTON_IDS) do
+            itms[id].Enabled = true
+        end
+        update_button_highlights(itms, ratio)
+        set_footer(itms, get_overlay_status())
+    end
+end
+
 -- Shows an error in the status label without changing button state.
 local function show_error(itms, msg)
     itms.status.Text = "Error: " .. tostring(msg)
@@ -161,7 +161,7 @@ local function build_window(ui, disp)
                 ui:Button{ ID = "btn_ig_reels",  Text = "IG Reels" },
                 ui:Button{ ID = "btn_yt_shorts", Text = "YT Shorts" },
             },
-            -- Row 2: mixed-ratio platforms  (4 buttons per §3 layout decision)
+            -- Row 2: mixed-ratio platforms
             ui:HGroup{
                 ui:Button{ ID = "btn_ig_feed",   Text = "IG Feed (4:5)" },
                 ui:Button{ ID = "btn_ig_post",   Text = "IG Post (1:1)" },
